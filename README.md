@@ -1,0 +1,72 @@
+# Player Data API
+
+Standalone **licensable** Player Data API for a fantasy baseball draft kit. Supports **pull** (GET players) and **push** (POST usage/events) with license validation.
+
+## Endpoints
+
+| Method | Path            | Purpose                    | License required |
+|--------|-----------------|----------------------------|------------------|
+| GET    | /health         | Health check               | No               |
+| GET    | /license/check  | Validate license           | Yes              |
+| GET    | /players        | Pull player data           | Yes              |
+| POST   | /usage          | Push usage/event from app  | Yes              |
+
+- **License**: Send `X-API-Key: <key>` or `Authorization: Bearer <key>`.
+- **GET /players** query params (optional): `search`, `team`, `position`, `limit`, `offset`.
+- **POST /usage** body: `{ "event": "...", "timestamp": "ISO8601", "metadata": {} }`.
+
+## Player data from CSV
+
+The API uses **data/players.json** when present (otherwise a small fallback list in **data/players.js**). To load your own NL stats or projections:
+
+```bash
+node scripts/csv-to-players.js /path/to/your.csv
+```
+
+Expected CSV columns: `Player,AB,R,H,1B,2B,3B,HR,RBI,BB,K,SB,CS,AVG,OBP,SLG,FPTS`. The `Player` column should be like `"Name Position | TEAM"` (e.g. `Juan Soto OF | NYM`). Output is written to **data/players.json**; restart the API to pick it up.
+
+Example with your files:
+
+```bash
+npm run import-csv -- ~/Downloads/2025-player-NL-stats.csv
+# or 3Year-average-NL-stats.csv / projections-NL.csv
+```
+
+## Setup
+
+```bash
+cp .env.example .env
+# Edit .env: set API_LICENSE_KEY (or VALID_API_KEYS) and optionally ALLOWED_ORIGIN
+npm install
+npm start
+```
+
+- **PORT** (default 4001)
+- **API_LICENSE_KEY** – single key, or **VALID_API_KEYS** – comma-separated keys
+- **ALLOWED_ORIGIN** – CORS origin (e.g. `http://localhost:3000` for draft kit)
+
+## Demo UI
+
+Open `http://localhost:4001` (or `/demo.html`) to use the small front end:
+
+1. **License check** – GET /license/check with your API key
+2. **Pull players** – GET /players, view list/count
+3. **Push usage** – POST /usage with a sample event
+
+## Troubleshooting
+
+**`EADDRINUSE: address already in use :::4001`** – Another process (often a previous run of this API) is using port 4001. Free it with:
+
+```bash
+lsof -ti :4001 | xargs kill -9
+```
+
+Or set `PORT=4002` (or another port) in `.env` and restart.
+
+## Connecting the draft kit
+
+In the draft kit repo:
+
+- Add env: `PLAYER_API_URL` (e.g. `http://localhost:4001`), `PLAYER_API_KEY` (license key).
+- Replace local player fetch with `GET <PLAYER_API_URL>/players` and header `X-API-Key: <PLAYER_API_KEY>`.
+- Call `POST <PLAYER_API_URL>/usage` when the user does something (e.g. opens draft room), with the same license header.

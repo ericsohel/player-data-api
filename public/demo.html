@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Data API – Demo</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 1rem; color: var(--accent); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      max-width: 640px;
+    }
+    label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.85rem; }
+    input[type="text"] {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      margin-bottom: 0.75rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    button:hover { filter: brightness(1.1); }
+    .out {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .out.success { border-left: 3px solid var(--success); }
+    .out.error { border-left: 3px solid var(--error); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Player Data API – Demo</h1>
+  <p style="color: var(--muted); margin-bottom: 1.5rem;">License check, pull (GET /players), push (POST /usage).</p>
+
+  <div class="card">
+    <label for="apiKey">API Key (X-API-Key)</label>
+    <input type="text" id="apiKey" placeholder="your-secret-key" autocomplete="off" />
+  </div>
+
+  <div class="card">
+    <strong>1. License check</strong>
+    <p style="color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0.5rem;">GET /license/check with header</p>
+    <button type="button" id="btnCheck">Check license</button>
+    <div id="outCheck" class="out" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <strong>2. Pull players</strong>
+    <p style="color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0.5rem;">GET /players (optional: ?limit=5&team=LAD)</p>
+    <button type="button" id="btnPull">Pull players</button>
+    <div id="outPull" class="out" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <strong>3. Push usage</strong>
+    <p style="color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0.5rem;">POST /usage with sample event</p>
+    <button type="button" id="btnPush">Push usage</button>
+    <div id="outPush" class="out" style="display:none;"></div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    function getKey() { return document.getElementById('apiKey').value.trim(); }
+    function headers() {
+      const key = getKey();
+      return key ? { 'X-API-Key': key, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    }
+    function showOut(id, text, isError) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'out ' + (isError ? 'error' : 'success');
+      el.style.display = 'block';
+    }
+
+    document.getElementById('btnCheck').addEventListener('click', async () => {
+      const out = 'outCheck';
+      try {
+        const r = await fetch(API_BASE + '/license/check', { headers: headers() });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) showOut(out, JSON.stringify(data, null, 2), false);
+        else showOut(out, (data.error || r.statusText) + '\n' + JSON.stringify(data, null, 2), true);
+      } catch (e) { showOut(out, e.message, true); }
+    });
+
+    document.getElementById('btnPull').addEventListener('click', async () => {
+      const out = 'outPull';
+      try {
+        const r = await fetch(API_BASE + '/players?limit=10', { headers: headers() });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          showOut(out, (data.error || r.statusText) + '\n' + JSON.stringify(data, null, 2), true);
+          return;
+        }
+        const total = data.total ?? data.players?.length ?? 0;
+        let html = 'Total: ' + total + '\n\n';
+        if (data.players && data.players.length) {
+          html += '<table><thead><tr><th>id</th><th>playerName</th><th>team</th><th>position</th><th>hr</th><th>rbi</th><th>avg</th><th>fpts</th></tr></thead><tbody>';
+          data.players.forEach(p => {
+            html += `<tr><td>${p.id}</td><td>${p.playerName}</td><td>${p.team}</td><td>${p.position}</td><td>${p.hr}</td><td>${p.rbi}</td><td>${p.avg}</td><td>${p.fpts}</td></tr>`;
+          });
+          html += '</tbody></table>';
+        }
+        document.getElementById(out).innerHTML = html;
+        document.getElementById(out).className = 'out success';
+        document.getElementById(out).style.display = 'block';
+      } catch (e) { showOut(out, e.message, true); }
+    });
+
+    document.getElementById('btnPush').addEventListener('click', async () => {
+      const out = 'outPush';
+      const body = { event: 'draft_view', timestamp: new Date().toISOString(), metadata: { source: 'demo' } };
+      try {
+        const r = await fetch(API_BASE + '/usage', {
+          method: 'POST',
+          headers: headers(),
+          body: JSON.stringify(body),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) showOut(out, JSON.stringify(data, null, 2), false);
+        else showOut(out, (data.error || r.statusText) + '\n' + JSON.stringify(data, null, 2), true);
+      } catch (e) { showOut(out, e.message, true); }
+    });
+  </script>
+</body>
+</html>
